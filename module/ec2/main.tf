@@ -30,12 +30,44 @@ resource "aws_instance" "Prod-pri-EC2" {
     subnet_id = var.subnet_id_2
     vpc_security_group_ids = [aws_security_group.prod-private-sg.id]
     availability_zone = var.availability_zone
+    iam_instance_profile = aws_iam_instance_profile.ec2_profile.id
   
   tags = {
     Name = "koko-pri-EC2 -${(var.availability_zone)}"
   }
 }
 
+
+resource "aws_iam_role" "ec2_role" {
+  name = "ec2roleforssm"
+
+  assume_role_policy = <<EOF
+{
+    "Version": "2012-10-17",
+    "Statement": {
+      "Effect": "Allow",
+      "Principal": {"Service": "ssm.amazonaws.com"},
+      "Action": "sts:AssumeRole"
+    }
+  }
+EOF
+}
+
+resource "aws_iam_role_policy_attachment" "ec2policy" {
+  role       = aws_iam_role.ec2_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
+resource "aws_ssm_activation" "ssm_activate" {
+  name               = "test_ssm_activation"
+  iam_role           = aws_iam_role.ec2_role.id
+  depends_on         = [aws_iam_role_policy_attachment.ec2policy]
+}
+
+resource "aws_iam_instance_profile" "ec2_profile" {
+  name = "ec2_profile"
+  role = aws_iam_role.ec2_role.name
+}
 # Create Security group
 
 resource "aws_security_group" "prod-public-sg" {

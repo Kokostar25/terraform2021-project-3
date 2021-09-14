@@ -47,3 +47,4 @@ module "Prod_Resources" {
   vpc_security_group_ids = ["module.Prod_Resources.security_group_public", "module.Prod_Resources.security_group_private"]
   availability_zone      = var.availability_zone
 }
+
