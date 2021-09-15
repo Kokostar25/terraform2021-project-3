@@ -3,6 +3,7 @@ resource "aws_instance" "Prod-pub-EC2" {
     ami         = var.ec2_ami
     instance_type = var.instance_type
     key_name = var.ec2_keypair
+    // key_name = aws_key_pair.ec2_keypair.key_name
     subnet_id = var.subnet_id_1
     vpc_security_group_ids = [aws_security_group.prod-public-sg.id]
     availability_zone = var.availability_zone
@@ -26,17 +27,18 @@ resource "aws_instance" "Prod-pub-EC2" {
 resource "aws_instance" "Prod-pri-EC2" {
     ami           = var.ec2_ami
     instance_type = var.instance_type
-    key_name      = var.ec2_keypair
+    // key_name      = aws_key_pair.ec2_keypair.key_name
+    key_name = var.ec2_keypair
     subnet_id = var.subnet_id_2
     vpc_security_group_ids = [aws_security_group.prod-private-sg.id]
     availability_zone = var.availability_zone
     iam_instance_profile = aws_iam_instance_profile.ec2_profile.id
+    associate_public_ip_address = false
   
-  tags = {
+    tags = {
     Name = "koko-pri-EC2 -${(var.availability_zone)}"
   }
 }
-
 
 resource "aws_iam_role" "ec2_role" {
   name = "ec2roleforssm"
@@ -68,6 +70,21 @@ resource "aws_iam_instance_profile" "ec2_profile" {
   name = "ec2_profile"
   role = aws_iam_role.ec2_role.name
 }
+
+
+resource "aws_vpc_endpoint" "interface" {
+  for_each          = toset(local.vpc_endpoints)
+  vpc_id            = var.vpc_id
+  service_name      = each.key
+  vpc_endpoint_type = "Interface"
+  private_dns_enabled = true
+  security_group_ids = [aws_security_group.prod-private-sg.id]
+  subnet_ids         = [var.subnet_id_2]
+
+  
+}
+
+
 # Create Security group
 
 resource "aws_security_group" "prod-public-sg" {
@@ -81,7 +98,7 @@ resource "aws_security_group" "prod-public-sg" {
     to_port          = 80
     protocol         = "tcp"
     cidr_blocks      = ["0.0.0.0/0"]
-    // security_groups   = [aws_security_group.koko-lb-sg.id]
+
     
 
   }
@@ -112,6 +129,14 @@ resource "aws_security_group" "prod-private-sg" {
   vpc_id      = var.vpc_id
 
  ingress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+ 
+
+ ingress {
     description      = "inbound rules from VPC"
     from_port        = 22
     to_port          = 22
@@ -119,14 +144,14 @@ resource "aws_security_group" "prod-private-sg" {
     cidr_blocks      = ["0.0.0.0/0"]
   }
 
-  ingress {
-    description      = "inbound rules from VPC"
-    from_port        = 80
-    to_port          = 80
-    protocol         = "tcp"
-    cidr_blocks      = ["0.0.0.0/0"]
+  // ingress {
+  //   description      = "inbound rules from VPC"
+  //   from_port        = 80
+  //   to_port          = 80
+  //   protocol         = "tcp"
+  //   cidr_blocks      = ["0.0.0.0/0"]
 
-  }
+  // }
 
   egress {
     from_port        = 0
@@ -168,78 +193,7 @@ resource "aws_eip" "prod-natgw-eip" {
     Name = "prod-eip"
     }
 }
-# ALB 
-// resource "aws_lb" "prod-lb" {
-//   name               = "prod-lb"
-//   internal           = false
-//   load_balancer_type = "application"
-//   security_groups    = [aws_security_group.koko-lb-sg.id]
-//   // subnets          = var.subnet_id_1
 
-//   enable_deletion_protection = false   
-//   tags = {
-//     Name = "koko-lb"
-//   }
-// }
-
-// resource "aws_lb_target_group_attachment" "tf-attach-1" {
-//   target_group_arn = aws_lb_target_group.koko-tg.id
-//   target_id        = aws_instance.Prod-pub-EC2.id
-//   port             = 80
-// }
-
-
-
-// # Target group for lb
-
-// resource "aws_lb_target_group" "koko-tg" {
-//   name     = "tf-koko-tg"
-//   port     = 80
-//   protocol = "HTTP"
-//   vpc_id   = var.vpc_id
-
-// health_check {
-//     port     = 80
-//     protocol = "HTTP"
-//   }
-// }
-
-// resource "aws_lb_listener" "tf-listener" {
-//   load_balancer_arn = aws_lb.prod-lb.id
-//   port              = "80"
-//   protocol          = "HTTP"
-
-//   default_action {
-//     target_group_arn = aws_lb_target_group.koko-tg.id
-//     type             = "forward"
-    
-
-//   }
-// }
-
-# Security Group for ALB
-// resource "aws_security_group" "koko-lb-sg" {
-//     name = "tf-koko-lb-sg"
-//     description = "allow HTTPS to tf-koko-elb-sg  Load Balancer (ALB)"
-//     vpc_id = var.vpc_id
-//     ingress {
-//         from_port = "80"
-//         to_port = "80"
-//         protocol = "tcp"
-//         cidr_blocks = ["0.0.0.0/0"]
-
-//     }
-//     egress {
-//     from_port   = 0
-//     to_port     = 0
-//     protocol    = "-1"
-//     cidr_blocks = ["0.0.0.0/0"]
-//   }
-
-//     tags = {
-//         Name = "koko-lb-sg"
-//     }
-// }
 
 
 # Public Route Table
@@ -264,7 +218,7 @@ resource "aws_route_table" "prod-PrivateRT" {
   vpc_id          = var.vpc_id
   route {
     cidr_block    = "0.0.0.0/0"
-  nat_gateway_id  = aws_nat_gateway.koko-nat-gw.id
+    nat_gateway_id  = aws_nat_gateway.koko-nat-gw.id
     
    }
 tags = {
@@ -283,8 +237,3 @@ resource "aws_route_table_association" "koko-PriRT" {
   subnet_id        = var.subnet_id_2
   route_table_id   = aws_route_table.prod-PrivateRT.id
 }
-
-
-
-
-

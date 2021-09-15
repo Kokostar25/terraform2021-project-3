@@ -19,7 +19,7 @@ variable "public_subnet" {
 
 variable "ec2_keypair" {
   default = "koko-KP"
-  // default = "A4L"
+  //   default = "A4L"
 }
 
 variable "instance_type" {
