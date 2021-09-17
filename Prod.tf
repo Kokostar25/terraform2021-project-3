@@ -21,7 +21,7 @@ terraform {
 
 provider "aws" {
   region = "us-east-1"
-  //   profile        = "iamadmin-general"
+//   profile        = "iamadmin-general"
   profile = "devops-koko"
 
 }

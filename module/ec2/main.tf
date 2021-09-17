@@ -3,7 +3,6 @@ resource "aws_instance" "Prod-pub-EC2" {
     ami         = var.ec2_ami
     instance_type = var.instance_type
     key_name = var.ec2_keypair
-    // key_name = aws_key_pair.ec2_keypair.key_name
     subnet_id = var.subnet_id_1
     vpc_security_group_ids = [aws_security_group.prod-public-sg.id]
     availability_zone = var.availability_zone
@@ -27,13 +26,14 @@ resource "aws_instance" "Prod-pub-EC2" {
 resource "aws_instance" "Prod-pri-EC2" {
     ami           = var.ec2_ami
     instance_type = var.instance_type
-    // key_name      = aws_key_pair.ec2_keypair.key_name
     key_name = var.ec2_keypair
     subnet_id = var.subnet_id_2
     vpc_security_group_ids = [aws_security_group.prod-private-sg.id]
     availability_zone = var.availability_zone
-    iam_instance_profile = aws_iam_instance_profile.ec2_profile.id
+    iam_instance_profile = aws_iam_instance_profile.ec2_profile.name
     associate_public_ip_address = false
+  
+    
   
     tags = {
     Name = "koko-pri-EC2 -${(var.availability_zone)}"
@@ -48,7 +48,7 @@ resource "aws_iam_role" "ec2_role" {
     "Version": "2012-10-17",
     "Statement": {
       "Effect": "Allow",
-      "Principal": {"Service": "ssm.amazonaws.com"},
+      "Principal": {"Service": "ec2.amazonaws.com"},
       "Action": "sts:AssumeRole"
     }
   }
@@ -60,28 +60,10 @@ resource "aws_iam_role_policy_attachment" "ec2policy" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
 }
 
-resource "aws_ssm_activation" "ssm_activate" {
-  name               = "test_ssm_activation"
-  iam_role           = aws_iam_role.ec2_role.id
-  depends_on         = [aws_iam_role_policy_attachment.ec2policy]
-}
 
 resource "aws_iam_instance_profile" "ec2_profile" {
   name = "ec2_profile"
   role = aws_iam_role.ec2_role.name
-}
-
-
-resource "aws_vpc_endpoint" "interface" {
-  for_each          = toset(local.vpc_endpoints)
-  vpc_id            = var.vpc_id
-  service_name      = each.key
-  vpc_endpoint_type = "Interface"
-  private_dns_enabled = true
-  security_group_ids = [aws_security_group.prod-private-sg.id]
-  subnet_ids         = [var.subnet_id_2]
-
-  
 }
 
 
@@ -97,10 +79,7 @@ resource "aws_security_group" "prod-public-sg" {
     from_port        = 80
     to_port          = 80
     protocol         = "tcp"
-    cidr_blocks      = ["0.0.0.0/0"]
-
-    
-
+    cidr_blocks      = ["0.0.0.0/0"] 
   }
     
  ingress {
@@ -109,17 +88,14 @@ resource "aws_security_group" "prod-public-sg" {
     to_port          = 22
     protocol         = "tcp"
     cidr_blocks      = ["0.0.0.0/0"]
-  }
-
-  
+  }  
 
   egress {
     from_port        = 0
     to_port          = 0
     protocol         = "-1"
     cidr_blocks      = ["0.0.0.0/0"]
-  }
-    
+  }    
   
 }
 
@@ -128,30 +104,6 @@ resource "aws_security_group" "prod-private-sg" {
   description = "Allow TLS inbound traffic"
   vpc_id      = var.vpc_id
 
- ingress {
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
- 
-
- ingress {
-    description      = "inbound rules from VPC"
-    from_port        = 22
-    to_port          = 22
-    protocol         = "tcp"
-    cidr_blocks      = ["0.0.0.0/0"]
-  }
-
-  // ingress {
-  //   description      = "inbound rules from VPC"
-  //   from_port        = 80
-  //   to_port          = 80
-  //   protocol         = "tcp"
-  //   cidr_blocks      = ["0.0.0.0/0"]
-
-  // }
 
   egress {
     from_port        = 0

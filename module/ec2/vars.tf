@@ -5,6 +5,7 @@ variable "vpc_id" {
 }
 variable "ec2_keypair" {
     default= "koko-KP"
+    // default = "A4L"
 }
 
 variable "instance_type" {
